@@ -1,0 +1,107 @@
+
+
+let
+    Source = Excel.Workbook(
+        File.Contents("C:\YourPath\ecommerce_sales.xlsx"),
+        null,
+        true
+    ),
+    SalesData = Source{[Item="Orders",Kind="Sheet"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(SalesData, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(
+        #"Promoted Headers",
+        {
+            {"Order ID", type text},
+            {"Order Date", type date},
+            {"Category", type text},
+            {"Sub-Category", type text},
+            {"Product Name", type text},
+            {"Quantity", Int64.Type},
+            {"Sales", type number},
+            {"Discount", type number},
+            {"Profit", type number},
+            {"Region", type text}
+        }
+    ),
+    #"Removed Duplicates" = Table.Distinct(#"Changed Type"),
+    #"Filtered Rows" = Table.SelectRows(#"Removed Duplicates", each [Sales] <> null)
+in
+    #"Filtered Rows"
+
+
+👉 If your file is CSV, tell me and I’ll give CSV version.
+
+🔹 2️⃣ Date Table (Very Important)
+
+Create a Date Table (Modeling → New Table):
+
+DateTable =
+ADDCOLUMNS (
+    CALENDAR ( MIN ( Sales[Order Date] ), MAX ( Sales[Order Date] ) ),
+    "Year", YEAR ( [Date] ),
+    "Month", FORMAT ( [Date], "MMM" ),
+    "Month Number", MONTH ( [Date] ),
+    "Year-Month", FORMAT ( [Date], "YYYY-MM" )
+)
+
+
+📌 Create a relationship:
+
+DateTable[Date]  →  Sales[Order Date]
+
+
+Mark DateTable as Date Table.
+
+🔹 3️⃣ DAX Measures – Core Sales KPIs
+📊 Base Metrics
+Total Sales = SUM ( Sales[Sales] )
+
+Total Quantity = SUM ( Sales[Quantity] )
+
+Total Profit = SUM ( Sales[Profit] )
+
+Total Orders = DISTINCTCOUNT ( Sales[Order ID] )
+
+📈 Performance Metrics
+Average Order Value (AOV) =
+DIVIDE ( [Total Sales], [Total Orders] )
+
+Profit Margin (%) =
+DIVIDE ( [Total Profit], [Total Sales] ) * 100
+
+🏷️ Discount & Pricing
+Average Discount (%) =
+AVERAGE ( Sales[Discount] ) * 100
+
+Sales After Discount =
+SUMX (
+    Sales,
+    Sales[Sales] * ( 1 - Sales[Discount] )
+)
+
+📅 Time-Based Metrics
+Monthly Sales =
+CALCULATE (
+    [Total Sales],
+    ALLEXCEPT ( DateTable, DateTable[Year], DateTable[Month Number] )
+)
+
+Yearly Sales =
+CALCULATE (
+    [Total Sales],
+    ALLEXCEPT ( DateTable, DateTable[Year] )
+)
+
+🛍️ Product & Category Analysis
+Sales by Category =
+CALCULATE ( [Total Sales], VALUES ( Sales[Category] ) )
+
+Top Product Sales =
+CALCULATE (
+    [Total Sales],
+    TOPN ( 5, VALUES ( Sales[Product Name] ), [Total Sales], DESC )
+)
+
+🌍 Regional Performance
+Sales by Region =
+CALCULATE ( [Total Sales], VALUES ( Sales[Region] ) )
